@@ -53,10 +53,6 @@ const PESO_KG_PADRAO = 0.8;
 const FAIXA_PESO_LIVRE_KG = 2;
 const TAXA_POR_KG_EXTRA = 3.50;
 
-export const ERRO_PLANTA_FORA_DE_SP =
-  'Plantas vivas são despachadas apenas para a Grande São Paulo por motivos de integridade e saúde da espécie. ' +
-  'Remova as plantas da sacola para liberar o envio via Correios (PAC/SEDEX) para o seu endereço.';
-
 const somenteDigitos = (cep: string) => String(cep).replace(/\D/g, '');
 
 // Converte itens crus do request em itens de frete. So para a COTACAO, onde a
@@ -73,6 +69,30 @@ const calcularPesoTotalKg = (itens: ItemFrete[]) =>
     return peso + pesoUnitario * item.quantidade;
   }, 0);
 
+// Monta a opcao de PAC para o CEP e peso informados.
+const opcaoPac = (cep: string, taxaPesoExtra: number): OpcaoFrete => {
+  const tarifa = TARIFAS_POR_REGIAO.find((t) => t.digitos.includes(cep.charAt(0))) ?? TARIFA_PADRAO;
+  return {
+    id: 'correios_pac',
+    nome: 'Correios PAC',
+    preco: Number((tarifa.pac + taxaPesoExtra).toFixed(2)),
+    prazo: tarifa.prazoPac,
+    descricao: 'Entrega econômica dos Correios com código de rastreamento.'
+  };
+};
+
+// Monta a opcao de SEDEX. Aceita uma descricao alternativa para o caso de plantas vivas.
+const opcaoSedex = (cep: string, taxaPesoExtra: number, descricao?: string): OpcaoFrete => {
+  const tarifa = TARIFAS_POR_REGIAO.find((t) => t.digitos.includes(cep.charAt(0))) ?? TARIFA_PADRAO;
+  return {
+    id: 'correios_sedex',
+    nome: 'Correios SEDEX',
+    preco: Number((tarifa.sedex + taxaPesoExtra).toFixed(2)),
+    prazo: tarifa.prazoSedex,
+    descricao: descricao ?? 'Entrega rápida expressa dos Correios.'
+  };
+};
+
 export const calcularOpcoesFrete = (cepBruto: string, itens: ItemFrete[]): ResultadoFrete => {
   const cep = somenteDigitos(cepBruto);
 
@@ -83,50 +103,52 @@ export const calcularOpcoesFrete = (cepBruto: string, itens: ItemFrete[]): Resul
   const contemPlantasVivas = itens.some((item) => item.categoria === CATEGORIA_PLANTA_VIVA);
   const isGrandeSP = cep.startsWith('0');
 
-  if (contemPlantasVivas) {
-    if (!isGrandeSP) {
-      return { ok: false, error: ERRO_PLANTA_FORA_DE_SP };
-    }
-
-    return {
-      ok: true,
-      tipo: 'local',
-      opcoes: [
-        {
-          id: 'moto_uemura',
-          nome: 'Entrega Expressa Uemura (Motoboy)',
-          preco: 15.00,
-          prazo: 'Mesmo dia ou dia útil seguinte',
-          descricao: 'Flores e plantas transportadas em suportes verticais seguros.'
-        }
-      ]
-    };
-  }
-
-  const tarifa = TARIFAS_POR_REGIAO.find((t) => t.digitos.includes(cep.charAt(0))) ?? TARIFA_PADRAO;
-
   const pesoTotalKg = calcularPesoTotalKg(itens);
   const pesoExcedente = Math.max(0, pesoTotalKg - FAIXA_PESO_LIVRE_KG);
   const taxaPesoExtra = pesoExcedente * TAXA_POR_KG_EXTRA;
 
+  if (contemPlantasVivas) {
+    // Grande SP: motoboy no mesmo dia, transporte proprio e mais seguro para a planta.
+    if (isGrandeSP) {
+      return {
+        ok: true,
+        tipo: 'local',
+        opcoes: [
+          {
+            id: 'moto_uemura',
+            nome: 'Entrega Expressa Uemura (Motoboy)',
+            preco: 15.00,
+            prazo: 'Mesmo dia ou dia útil seguinte',
+            descricao: 'Flores e plantas transportadas em suportes verticais seguros.'
+          }
+        ]
+      };
+    }
+
+    // Outros estados: SOMENTE SEDEX. O PAC e lento demais e a planta nao sobreviveria
+    // aos 8-12 dias. Plantas vivas sao despachadas apenas as segundas-feiras (a loja
+    // agrupa os envios para a planta nao ficar parada no fim de semana no transito).
+    const sedexPlanta = opcaoSedex(
+      cep,
+      taxaPesoExtra,
+      'Despachamos às segundas-feiras para a planta não ficar no trânsito no fim de semana. Prazo dos Correios após o envio.'
+    );
+    sedexPlanta.prazo = `Envio na próxima segunda + ${sedexPlanta.prazo}`;
+
+    return {
+      ok: true,
+      tipo: 'correios',
+      opcoes: [sedexPlanta]
+    };
+  }
+
+  // Só vasos/acessórios: PAC e SEDEX para todo o Brasil.
   return {
     ok: true,
     tipo: 'correios',
     opcoes: [
-      {
-        id: 'correios_pac',
-        nome: 'Correios PAC',
-        preco: Number((tarifa.pac + taxaPesoExtra).toFixed(2)),
-        prazo: tarifa.prazoPac,
-        descricao: 'Entrega econômica dos Correios com código de rastreamento.'
-      },
-      {
-        id: 'correios_sedex',
-        nome: 'Correios SEDEX',
-        preco: Number((tarifa.sedex + taxaPesoExtra).toFixed(2)),
-        prazo: tarifa.prazoSedex,
-        descricao: 'Entrega rápida expressa dos Correios.'
-      }
+      opcaoPac(cep, taxaPesoExtra),
+      opcaoSedex(cep, taxaPesoExtra)
     ]
   };
 };

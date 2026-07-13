@@ -468,10 +468,11 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                         <input
                           id="cep-input"
                           type="text"
-                          maxLength={8}
-                          placeholder="Digite seu CEP"
+                          inputMode="numeric"
+                          maxLength={9}
+                          placeholder="Digite seu CEP (só números)"
                           value={cep}
-                          onChange={(e) => setCep(e.target.value.replace(/\D/g, ''))}
+                          onChange={(e) => setCep(e.target.value.replace(/\D/g, '').slice(0, 8))}
                         />
                         <button type="submit" disabled={isCalculando}>
                           {isCalculando ? '...' : <Truck size={16} />}

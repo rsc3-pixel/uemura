@@ -23,8 +23,8 @@ export const FAQ: React.FC<FAQProps> = ({ isOpen, onClose }) => {
       resposta: 'Basta digitar o seu CEP de 8 dígitos no campo de simulação de frete do carrinho de compras e clicar no botão calcular. Nosso sistema consultará automaticamente o serviço ViaCEP e preencherá a sua Rua, Bairro e Cidade na tela de confirmação, bastando você digitar apenas o número do imóvel.'
     },
     {
-      pergunta: 'Por que o site bloqueia a compra de plantas para outros estados?',
-      resposta: 'Plantas vivas são perecíveis e sensíveis a longos períodos sem luz e água dentro de caixas de transporte fechadas. Por isso, para garantir que as espécies cheguem saudáveis, entregamos plantas vivas apenas na Grande São Paulo por meio de nossa entrega expressa rápida de carro ou motoboy. Caso seu CEP seja de fora, remova as plantas do carrinho para liberar o envio de vasos e acessórios pelos Correios.'
+      pergunta: 'Como funciona a entrega de plantas vivas para outros estados?',
+      resposta: 'Na Grande São Paulo, entregamos plantas vivas no mesmo dia por carro ou motoboy. Para outros estados, enviamos por SEDEX, o serviço mais rápido dos Correios, justamente para reduzir o tempo da planta dentro da caixa. Como plantas vivas são sensíveis, despachamos esses pedidos apenas às segundas-feiras, evitando que a planta fique parada no transporte durante o fim de semana. O prazo dos Correios começa a contar a partir do envio na segunda.'
     },
     {
       pergunta: 'Quais são as formas de pagamento disponíveis?',
