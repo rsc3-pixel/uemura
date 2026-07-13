@@ -9,7 +9,7 @@ import { Testimonials } from './components/Testimonials';
 import { FAQ } from './components/FAQ';
 import { Toast } from './components/Toast';
 import { PRODUTOS } from './data/produtos';
-import { API_URL } from './config';
+import { API_URL, parseJson } from './config';
 import { useToast } from './context/ToastContext';
 import type { Produto } from './types';
 import './App.css';
@@ -36,8 +36,9 @@ function App() {
         if (!response.ok) {
           throw new Error('Falha ao obter dados do servidor');
         }
-        const dados = await response.json();
-        setProdutos(dados);
+        const dados = await parseJson(response, []);
+        // Se vier vazio por algum motivo, mantem o catalogo local de contingencia
+        setProdutos(dados.length > 0 ? dados : PRODUTOS);
       } catch (error) {
         console.warn('Erro ao conectar ao backend (utilizando catálogo local de contingência):', error);
         setProdutos(PRODUTOS);
@@ -59,8 +60,9 @@ function App() {
         try {
           const response = await fetch(`${API_URL}/api/pedidos/${id}`);
           if (response.ok) {
-            const pedido = await response.json();
+            const pedido = await parseJson(response);
             const statusAtual = pedido.status;
+            if (!statusAtual) continue;
             const statusSalvo = lastStatusesRef.current[id];
 
             // Se o status acabou de mudar no SQLite, dispara a notificacao Toast

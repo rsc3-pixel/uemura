@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Search, Calendar, DollarSign, ChevronDown, ChevronUp, Star, HeartHandshake } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { OrderStatusTracker } from './OrderStatusTracker';
-import { API_URL } from '../config';
+import { API_URL, parseJson } from '../config';
 import { useToast } from '../context/ToastContext';
 import styles from './OrderHistory.module.css';
 
@@ -78,8 +78,8 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
         try {
           const response = await fetch(`${API_URL}/api/pedidos/${id}`);
           if (response.ok) {
-            const ped = await response.json();
-            listaPedidos.push(ped);
+            const ped = await parseJson(response);
+            if (ped.id) listaPedidos.push(ped);
           }
         } catch (e) {
           console.warn(`Erro ao carregar pedido ${id} do servidor:`, e);
@@ -122,7 +122,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
       });
       if (!response.ok) throw new Error();
 
-      const dados = await response.json();
+      const dados = await parseJson(response);
       setAuthFase('codigo');
       // Em modo demo o backend devolve o codigo; em producao ele iria por WhatsApp.
       if (dados.codigoDemo) {
@@ -157,7 +157,11 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
         return;
       }
 
-      const { token } = await response.json();
+      const { token } = await parseJson(response);
+      if (!token) {
+        showToast('Não foi possível validar o código. Tente novamente.', 'info', 'Erro');
+        return;
+      }
       await buscarHistorico(token);
     } catch (err) {
       console.error(err);
@@ -178,7 +182,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
       return;
     }
 
-    const dados: Pedido[] = await response.json();
+    const dados = await parseJson<Pedido[]>(response, []);
     setPedidos(dados);
 
     if (dados.length === 0) {
@@ -260,7 +264,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
         return;
       }
 
-      const erro = await response.json().catch(() => ({}));
+      const erro = await parseJson(response);
       console.warn('Falha ao atualizar status:', erro.error ?? response.status);
     } catch (err) {
       console.warn('Erro ao atualizar status:', err);

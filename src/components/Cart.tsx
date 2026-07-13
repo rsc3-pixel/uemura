@@ -3,7 +3,7 @@ import { X, Trash2, Plus, Minus, Send, Copy, Check, Ticket, Truck } from 'lucide
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
-import { API_URL } from '../config';
+import { API_URL, parseJson } from '../config';
 import styles from './Cart.module.css';
 
 interface CartProps {
@@ -90,8 +90,8 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
     try {
       const viaCepRes = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
       if (viaCepRes.ok) {
-        const addr = await viaCepRes.json();
-        if (!addr.erro) {
+        const addr = await parseJson(viaCepRes);
+        if (!addr.erro && addr.logradouro) {
           // Preenche o endereço automaticamente deixando espaço para digitar o número
           setCheckoutAddress(`${addr.logradouro}, Nº - ${addr.bairro}, ${addr.localidade} - ${addr.uf}`);
         }
@@ -112,18 +112,19 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Erro ao calcular frete no servidor.');
+        const errData = await parseJson(response);
+        throw new Error(errData.error || 'Não foi possível calcular o frete. Tente novamente.');
       }
 
-      const dados = await response.json();
-      setOpcoesFrete(dados.opcoes);
-      
-      // Define a primeira opção de frete por padrão
-      if (dados.opcoes && dados.opcoes.length > 0) {
-        setFreteSelecionado(dados.opcoes[0]);
-        setFrete(dados.opcoes[0].preco);
+      const dados = await parseJson(response);
+      if (!dados.opcoes || dados.opcoes.length === 0) {
+        throw new Error('Não foi possível calcular o frete. Tente novamente.');
       }
+
+      setOpcoesFrete(dados.opcoes);
+      // Define a primeira opção de frete por padrão
+      setFreteSelecionado(dados.opcoes[0]);
+      setFrete(dados.opcoes[0].preco);
     } catch (err: any) {
       setFrete(null);
       setFreteErro(err.message || 'Sem conexão com o servidor de frete.');
@@ -151,11 +152,11 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Cupom invalido');
+        const errData = await parseJson(response);
+        throw new Error(errData.error || 'Cupom inválido');
       }
 
-      const dados = await response.json();
+      const dados = await parseJson(response);
       setDescontoPorcentagem(dados.descontoPorcentagem);
       setValorDesconto(dados.valorDesconto);
       setCupomAplicado(cupomInput.toUpperCase());
@@ -198,7 +199,10 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
         throw new Error('Falha ao registrar o pedido no servidor.');
       }
 
-      const dados = await response.json();
+      const dados = await parseJson(response);
+      if (!dados.pedido || !dados.pix) {
+        throw new Error('Falha ao registrar o pedido no servidor.');
+      }
       setPedidoCriado(dados.pedido);
       setPix(dados.pix);
 
@@ -241,7 +245,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
       try {
         const response = await fetch(`${API_URL}/api/pedidos/${pedidoId}`);
         if (response.ok) {
-          const pedido = await response.json();
+          const pedido = await parseJson(response);
           if (pedido.status === 'Aprovado') {
             if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
             setPedidoCriado(null);

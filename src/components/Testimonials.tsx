@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Star } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { API_URL } from '../config';
+import { API_URL, parseJson } from '../config';
 import styles from './Testimonials.module.css';
 
 interface Testimonial {
@@ -24,7 +24,8 @@ export const Testimonials: React.FC = () => {
       try {
         const response = await fetch(`${API_URL}/api/avaliacoes`);
         if (response.ok) {
-          const dados = await response.json();
+          const dados = await parseJson(response, []);
+          if (dados.length === 0) throw new Error();
           setReviews(dados);
         } else {
           throw new Error();
