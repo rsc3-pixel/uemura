@@ -7,6 +7,7 @@ import cuponsRouter from './routes/cupons.js';
 import avaliacoesRouter from './routes/avaliacoes.js';
 import freteRouter from './routes/frete.js';
 import webhooksRouter from './routes/webhooks.js';
+import authRouter from './routes/auth.js';
 import { popularBancoSeVazio } from './data/seed.js';
 
 export const prisma = new PrismaClient();
@@ -32,6 +33,7 @@ app.use('/api/cupons', cuponsRouter);
 app.use('/api/avaliacoes', avaliacoesRouter);
 app.use('/api/frete', freteRouter);
 app.use('/api/webhooks', webhooksRouter);
+app.use('/api/auth', authRouter);
 
 // Rota de Status do Servidor
 app.get('/api/status', (req, res) => {

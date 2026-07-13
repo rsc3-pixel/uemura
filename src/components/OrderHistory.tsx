@@ -46,6 +46,11 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [searchPhone, setSearchPhone] = useState('');
   const [isBuscandoTelefone, setIsBuscandoTelefone] = useState(false);
+
+  // Login por codigo: 'telefone' (pede o codigo) -> 'codigo' (digita) -> autenticado
+  const [authFase, setAuthFase] = useState<'telefone' | 'codigo'>('telefone');
+  const [codigoInput, setCodigoInput] = useState('');
+  const [codigoDemo, setCodigoDemo] = useState('');
   const [expandedPedidoId, setExpandedPedidoId] = useState<string | null>(null);
   const [cultivoExpandido, setCultivoExpandido] = useState<{ [key: string]: boolean }>({});
   const [isCarregandoIniciais, setIsCarregandoIniciais] = useState(false);
@@ -100,31 +105,87 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
     }
   }, [isOpen]);
 
-  // Busca histórico de pedidos informando o número de telefone no banco de dados
-  const handleBuscarPorTelefone = async (e: React.FormEvent) => {
+  // Etapa 1: pede um codigo de acesso para o telefone informado
+  const handleSolicitarCodigo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchPhone || searchPhone.length < 8) return;
+    if (!searchPhone || searchPhone.length < 10) {
+      showToast('Informe DDD + número (ex: 11988887777).', 'info', 'Telefone inválido');
+      return;
+    }
 
     setIsBuscandoTelefone(true);
     try {
-      const response = await fetch(`${API_URL}/api/pedidos/cliente/${searchPhone}`);
+      const response = await fetch(`${API_URL}/api/auth/solicitar-codigo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telefone: searchPhone })
+      });
       if (!response.ok) throw new Error();
 
-      const dados: Pedido[] = await response.json();
-      setPedidos(dados);
-
-      if (dados.length === 0) {
-        showToast('Nenhum pedido encontrado para este telefone.', 'info', 'Busca de Pedidos');
+      const dados = await response.json();
+      setAuthFase('codigo');
+      // Em modo demo o backend devolve o codigo; em producao ele iria por WhatsApp.
+      if (dados.codigoDemo) {
+        setCodigoDemo(dados.codigoDemo);
+        showToast(`Código de acesso (demo): ${dados.codigoDemo}`, 'info', 'Use este código');
       } else {
-        // Aproveita e salva os IDs dos pedidos encontrados no localStorage para facilidade futura
-        const novosIds = dados.map((p) => p.id);
-        localStorage.setItem('uemura_historico_pedidos', JSON.stringify(novosIds));
+        showToast('Enviamos um código para o seu WhatsApp.', 'info', 'Verifique seu celular');
       }
     } catch (err) {
       console.error(err);
-      showToast('Sem conexão com o servidor para buscar o histórico.', 'info', 'Erro de Conexão');
+      showToast('Sem conexão com o servidor.', 'info', 'Erro de Conexão');
     } finally {
       setIsBuscandoTelefone(false);
+    }
+  };
+
+  // Etapa 2: verifica o codigo, obtem o token e ja busca o historico
+  const handleVerificarCodigo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!codigoInput) return;
+
+    setIsBuscandoTelefone(true);
+    try {
+      const response = await fetch(`${API_URL}/api/auth/verificar-codigo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telefone: searchPhone, codigo: codigoInput })
+      });
+
+      if (!response.ok) {
+        showToast('Código inválido ou expirado.', 'info', 'Tente novamente');
+        return;
+      }
+
+      const { token } = await response.json();
+      await buscarHistorico(token);
+    } catch (err) {
+      console.error(err);
+      showToast('Sem conexão com o servidor.', 'info', 'Erro de Conexão');
+    } finally {
+      setIsBuscandoTelefone(false);
+    }
+  };
+
+  // Busca o historico usando o token de sessao autenticado
+  const buscarHistorico = async (token: string) => {
+    const response = await fetch(`${API_URL}/api/pedidos/cliente/${searchPhone}`, {
+      headers: { 'x-session-token': token }
+    });
+    if (!response.ok) {
+      showToast('Sessão expirada. Solicite um novo código.', 'info', 'Acesso expirado');
+      setAuthFase('telefone');
+      return;
+    }
+
+    const dados: Pedido[] = await response.json();
+    setPedidos(dados);
+
+    if (dados.length === 0) {
+      showToast('Nenhum pedido encontrado para este telefone.', 'info', 'Busca de Pedidos');
+    } else {
+      const novosIds = dados.map((p) => p.id);
+      localStorage.setItem('uemura_historico_pedidos', JSON.stringify(novosIds));
     }
   };
 
@@ -237,22 +298,50 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
 
             {/* Conteudo */}
             <div className={styles.content}>
-              {/* Form de busca por Telefone */}
-              <form onSubmit={handleBuscarPorTelefone} className={styles.searchForm}>
-                <label htmlFor="search-phone-input">Buscar compras por telefone</label>
-                <div className={styles.searchInputGroup}>
-                  <input
-                    id="search-phone-input"
-                    type="tel"
-                    placeholder="Ex: 11988887777"
-                    value={searchPhone}
-                    onChange={(e) => setSearchPhone(e.target.value.replace(/\D/g, ''))}
-                  />
-                  <button type="submit" disabled={isBuscandoTelefone}>
-                    {isBuscandoTelefone ? '...' : <Search size={16} />}
+              {/* Login por codigo: etapa 1 pede o telefone, etapa 2 pede o codigo */}
+              {authFase === 'telefone' ? (
+                <form onSubmit={handleSolicitarCodigo} className={styles.searchForm}>
+                  <label htmlFor="search-phone-input">Acessar minhas compras</label>
+                  <div className={styles.searchInputGroup}>
+                    <input
+                      id="search-phone-input"
+                      type="tel"
+                      placeholder="DDD + número (ex: 11988887777)"
+                      value={searchPhone}
+                      onChange={(e) => setSearchPhone(e.target.value.replace(/\D/g, ''))}
+                    />
+                    <button type="submit" disabled={isBuscandoTelefone}>
+                      {isBuscandoTelefone ? '...' : <Search size={16} />}
+                    </button>
+                  </div>
+                  <small>Enviaremos um código de acesso para o seu telefone.</small>
+                </form>
+              ) : (
+                <form onSubmit={handleVerificarCodigo} className={styles.searchForm}>
+                  <label htmlFor="code-input">Digite o código enviado</label>
+                  <div className={styles.searchInputGroup}>
+                    <input
+                      id="code-input"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder={codigoDemo ? `Código: ${codigoDemo}` : '6 dígitos'}
+                      value={codigoInput}
+                      onChange={(e) => setCodigoInput(e.target.value.replace(/\D/g, ''))}
+                    />
+                    <button type="submit" disabled={isBuscandoTelefone}>
+                      {isBuscandoTelefone ? '...' : <Search size={16} />}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.linkBtn}
+                    onClick={() => { setAuthFase('telefone'); setCodigoInput(''); setCodigoDemo(''); }}
+                  >
+                    Usar outro telefone
                   </button>
-                </div>
-              </form>
+                </form>
+              )}
 
               {isCarregandoIniciais ? (
                 <div className={styles.loadingState}>Buscando pedidos...</div>

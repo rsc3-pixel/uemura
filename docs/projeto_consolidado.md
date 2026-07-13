@@ -31,8 +31,10 @@ c:\Users\CHONGRENATOO\Documents\uemurafloresplantas.com.br
 │   │   ├── middleware/
 │   │   │   └── admin.ts           # Exige x-admin-token nas rotas de status
 │   │   ├── services/
-│   │   │   └── frete.ts           # Regras de frete (usadas por cotacao e pedido)
+│   │   │   ├── frete.ts           # Regras de frete (usadas por cotacao e pedido)
+│   │   │   └── auth.ts            # Codigos e sessoes do login por telefone
 │   │   ├── routes/
+│   │   │   ├── auth.ts            # Solicitar e verificar codigo de acesso
 │   │   │   ├── produtos.ts        # Endpoints de catalogo
 │   │   │   ├── pedidos.ts         # Criacao de pedido, PIX e recalculo seguro
 │   │   │   ├── cupons.ts          # Validacao de cupom para exibicao na sacola
@@ -83,11 +85,14 @@ O servidor responde na URL definida por `VITE_API_URL` (padrão `http://localhos
 
 **Princípio de segurança:** o cliente envia apenas *intenções* (qual cupom, qual opção de frete, quais produtos). Todo valor em dinheiro (preço, desconto, frete) é derivado do banco e das regras no servidor. Valores enviados no corpo da requisição são ignorados.
 
+* **Autenticação (login por código):**
+  * `POST /api/auth/solicitar-codigo`: Gera um código de 6 dígitos para o telefone. Em modo demo retorna o código na resposta; em produção seria enviado por WhatsApp.
+  * `POST /api/auth/verificar-codigo`: Troca telefone + código por um token de sessão (válido 30 min).
 * **Produtos:**
   * `GET /api/produtos`: Retorna a listagem de todos os itens do catálogo de plantas.
 * **Pedidos:**
   * `POST /api/pedidos`: Cria um novo pedido. Recebe `cep`, `freteId` (id da opção escolhida) e `cupomCodigo` (código, não a porcentagem). O servidor recalcula preço, frete e desconto a partir do banco, gera o PIX Dinâmico no Mercado Pago (ou a contingência local se offline) e grava no SQLite.
-  * `GET /api/pedidos/cliente/:telefone`: Busca pedidos vinculados ao telefone. **Não retorna endereço nem telefone** (mitigação LGPD); só nome, itens, total e status.
+  * `GET /api/pedidos/cliente/:telefone`: Busca pedidos vinculados ao telefone. **Exige autenticação** (header `x-session-token` obtido no login por código). O token precisa pertencer ao telefone consultado, o que impede varredura de dados de terceiros (LGPD).
   * `GET /api/pedidos/:id`: Retorna o status e os dados de um pedido específico.
   * `POST /api/pedidos/:id/simular-pagamento`: **Rota administrativa** (exige header `x-admin-token`). Muda o status para "Aprovado". Desativada se `ADMIN_TOKEN` não estiver definido.
   * `POST /api/pedidos/:id/atualizar-status`: **Rota administrativa** (exige header `x-admin-token`). Avança o status na esteira logística (Pendente -> Aprovado -> Preparando -> Em Rota -> Entregue).

@@ -3,6 +3,7 @@ import { prisma } from '../server.js';
 import { mpPayment } from '../config/mercadopago.js';
 import { calcularOpcoesFrete } from '../services/frete.js';
 import { exigirAdmin } from '../middleware/admin.js';
+import { sessaoValida } from '../services/auth.js';
 
 const router = Router();
 
@@ -179,28 +180,24 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/pedidos/cliente/:telefone: Buscar historico de pedidos por telefone do cliente
+// GET /api/pedidos/cliente/:telefone: Buscar historico de pedidos do cliente
 //
-// MITIGACAO LGPD: esta rota e publica (basta saber o telefone), entao NAO expomos
-// endereco nem telefone. So devolvemos o minimo para o cliente reconhecer e rastrear
-// o pedido. Um scraper que varra telefones coleta, no maximo, nome + itens comprados,
-// nunca o endereco de entrega.
-//
-// TODO(seguranca): trocar por autenticacao real antes de producao. O rulebook preve
-// login passwordless por codigo no WhatsApp (Twilio/Z-API): gerar um codigo, enviar ao
-// numero, e so entao liberar o historico completo. Ver docs/rulebook_uemura.md.
+// Exige sessao autenticada (login por codigo, ver routes/auth.ts). O token vai no
+// header x-session-token e precisa pertencer ao telefone consultado. Isso impede que
+// alguem varra telefones alheios para coletar dados de clientes (LGPD).
 router.get('/cliente/:telefone', async (req: Request, res: Response) => {
   const telefone = req.params.telefone as string;
 
+  if (!sessaoValida(req.get('x-session-token'), telefone, Date.now())) {
+    res.status(401).json({ error: 'Autentique-se com o codigo enviado para este telefone.' });
+    return;
+  }
+
   try {
+    // Cliente autenticado como dono do numero: pode ver os proprios dados completos.
     const pedidos = await prisma.pedido.findMany({
       where: { clienteTelefone: telefone },
-      select: {
-        id: true,
-        clienteNome: true,
-        total: true,
-        status: true,
-        dataCriacao: true,
+      include: {
         itens: {
           include: {
             produto: true

@@ -17,7 +17,7 @@ A arquitetura Full Stack desenvolvida é altamente performática e resiliente. A
 
 ### Pontos de Melhoria Futura (Evolução do Produto):
 * **Painel Administrativo Isolado:** As rotas de status já exigem token, mas os botões de simulação ainda aparecem, de forma didática, no histórico do próprio cliente. Em produção, eles devem ser removidos e movidos para uma rota `/admin` com login próprio. Nota: o `VITE_ADMIN_TOKEN` do front fica visível no bundle, então serve só ao demo local, não é proteção real de produção.
-* **Autenticação por Código Único (Passwordless):** A consulta ao histórico por telefone hoje não expõe endereço nem telefone (mitigação LGPD), mas ainda é pública. Para produção, integrar envio de código via WhatsApp (Twilio ou Z-API) para autenticar o cliente antes de liberar o histórico completo. Há um `TODO` marcando isso em `backend/src/routes/pedidos.ts`.
+* **Autenticação por Código Único (Passwordless):** Já implementada. A consulta ao histórico exige login: o cliente informa o telefone, recebe um código de 6 dígitos e o digita para obter um token de sessão (30 min). A rota de histórico só responde a quem tem token válido para aquele telefone (`backend/src/routes/auth.ts` e `services/auth.ts`). Falta apenas o envio real do código: hoje ele volta na resposta em modo demo; em produção, ligar `WHATSAPP_INTEGRACAO=on` e integrar Twilio/Z-API. O store de códigos é em memória (Map); com múltiplas instâncias, migrar para Redis.
 * **Envio de Mensagens Logísticas Automatizadas:** Configurar disparos automáticos de mensagens de texto no WhatsApp do cliente informando o código PIX copia e cola e alertando quando o pedido sair para entrega.
 
 ---
