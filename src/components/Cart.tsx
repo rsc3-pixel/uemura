@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Trash2, Plus, Minus, Send, Copy, Check, Ticket, Truck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '../context/CartContext';
+import { useToast } from '../context/ToastContext';
+import { API_URL } from '../config';
 import styles from './Cart.module.css';
 
 interface CartProps {
@@ -22,6 +24,7 @@ interface PixDados {
 
 export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
   const { cartItems, updateQuantity, removeFromCart, cartTotal, clearCart } = useCart();
+  const { showToast } = useToast();
   const [cep, setCep] = useState('');
   const [frete, setFrete] = useState<number | null>(null);
   const [isCalculando, setIsCalculando] = useState(false);
@@ -99,7 +102,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
 
     // 2. Tenta calcular taxas de frete na API do backend
     try {
-      const response = await fetch('http://localhost:3001/api/frete', {
+      const response = await fetch(`${API_URL}/api/frete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -138,7 +141,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
     setCupomSucesso('');
 
     try {
-      const response = await fetch('http://localhost:3001/api/cupons/validar', {
+      const response = await fetch(`${API_URL}/api/cupons/validar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -177,7 +180,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
     setIsEnviandoPedido(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/pedidos', {
+      const response = await fetch(`${API_URL}/api/pedidos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -213,7 +216,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
     } catch (err) {
       console.error(err);
       // Fallback estatico caso o backend nao esteja rodando
-      alert('Sem conexao com o backend. Rodando em modo de demonstracao offline...');
+      showToast('Sem conexão com o servidor. Rodando em modo de demonstração offline.', 'info', 'Modo Offline');
       
       const offlinePedidoId = `PED-${Math.floor(100000 + Math.random() * 900000)}`;
       setPedidoCriado({
@@ -236,7 +239,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
 
     pollingIntervalRef.current = window.setInterval(async () => {
       try {
-        const response = await fetch(`http://localhost:3001/api/pedidos/${pedidoId}`);
+        const response = await fetch(`${API_URL}/api/pedidos/${pedidoId}`);
         if (response.ok) {
           const pedido = await response.json();
           if (pedido.status === 'Aprovado') {
@@ -276,7 +279,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
     setIsSimulandoBanco(true);
 
     try {
-      const response = await fetch(`http://localhost:3001/api/pedidos/${pedidoCriado.id}/simular-pagamento`, {
+      const response = await fetch(`${API_URL}/api/pedidos/${pedidoCriado.id}/simular-pagamento`, {
         method: 'POST',
         headers: { 'x-admin-token': import.meta.env.VITE_ADMIN_TOKEN ?? '' }
       });

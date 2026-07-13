@@ -1,5 +1,6 @@
 import React from 'react';
 import { Mail, Phone, MapPin } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 import styles from './Footer.module.css';
 
 interface FooterProps {
@@ -7,9 +8,11 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onFAQOpen }) => {
+  const { showToast } = useToast();
+
   const handleNewsletterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    alert('E-mail cadastrado na simulação de newsletter!');
+    showToast('E-mail cadastrado com sucesso na nossa newsletter!', 'sucesso', 'Inscrição confirmada');
   };
 
   return (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { ProductGrid } from './components/ProductGrid';
 import { Cart } from './components/Cart';
@@ -7,8 +7,10 @@ import { Footer } from './components/Footer';
 import { OrderHistory } from './components/OrderHistory';
 import { Testimonials } from './components/Testimonials';
 import { FAQ } from './components/FAQ';
-import { Toast, type ToastMessage } from './components/Toast';
+import { Toast } from './components/Toast';
 import { PRODUTOS } from './data/produtos';
+import { API_URL } from './config';
+import { useToast } from './context/ToastContext';
 import type { Produto } from './types';
 import './App.css';
 
@@ -21,15 +23,16 @@ function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
   
-  // Estados para Notificacoes Toast
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [lastStatuses, setLastStatuses] = useState<{ [id: string]: string }>({});
+  // Notificacoes Toast agora vem do contexto global (qualquer componente dispara)
+  const { toasts, showToast, removeToast } = useToast();
+  // Cache de status em ref: nao dispara re-render nem recria o intervalo de polling
+  const lastStatusesRef = useRef<{ [id: string]: string }>({});
 
   // Carrega os produtos do backend com fallback seguro para os dados locais
   useEffect(() => {
     const carregarProdutos = async () => {
       try {
-        const response = await fetch('http://localhost:3001/api/produtos');
+        const response = await fetch(`${API_URL}/api/produtos`);
         if (!response.ok) {
           throw new Error('Falha ao obter dados do servidor');
         }
@@ -54,22 +57,19 @@ function App() {
     const checkStatuses = async () => {
       for (const id of idsHistorico) {
         try {
-          const response = await fetch(`http://localhost:3001/api/pedidos/${id}`);
+          const response = await fetch(`${API_URL}/api/pedidos/${id}`);
           if (response.ok) {
             const pedido = await response.json();
             const statusAtual = pedido.status;
-            const statusSalvo = lastStatuses[id];
+            const statusSalvo = lastStatusesRef.current[id];
 
             // Se o status acabou de mudar no SQLite, dispara a notificacao Toast
             if (statusSalvo && statusSalvo !== statusAtual) {
               adicionarToast(id, statusAtual);
             }
 
-            // Atualiza o cache do status
-            setLastStatuses(prev => ({
-              ...prev,
-              [id]: statusAtual
-            }));
+            // Atualiza o cache do status (ref: sem re-render)
+            lastStatusesRef.current[id] = statusAtual;
           }
         } catch (err) {
           // Ignora silenciosamente falhas de rede durante o polling
@@ -82,7 +82,9 @@ function App() {
     const interval = window.setInterval(checkStatuses, 4000);
 
     return () => clearInterval(interval);
-  }, [lastStatuses]);
+    // Sem dependencias: o efeito monta o intervalo UMA vez. O cache de status vive
+    // em ref, entao ler/escrever nele nao recria o polling a cada 4s como antes.
+  }, []);
 
   const adicionarToast = (pedidoId: string, status: string) => {
     let titulo = 'Pedido Atualizado';
@@ -107,17 +109,7 @@ function App() {
         break;
     }
 
-    const novoToast: ToastMessage = {
-      id: `${pedidoId}-${Date.now()}`,
-      texto: `${titulo} - ${mensagem}`,
-      tipo: status === 'Aprovado' ? 'sucesso' : 'info'
-    };
-
-    setToasts(prev => [...prev, novoToast]);
-  };
-
-  const removerToast = (id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
+    showToast(mensagem, status === 'Aprovado' ? 'sucesso' : 'info', titulo);
   };
 
   // Filtragem dos produtos
@@ -133,7 +125,7 @@ function App() {
   return (
     <div className="appContainer">
       {/* Notificacoes Flutuantes (Toast) */}
-      <Toast toasts={toasts} onRemove={removerToast} />
+      <Toast toasts={toasts} onRemove={removeToast} />
 
       {/* Cabecalho */}
       <Header

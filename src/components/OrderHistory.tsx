@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, Search, Calendar, DollarSign, ChevronDown, ChevronUp, Star, HeartHandshake } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { OrderStatusTracker } from './OrderStatusTracker';
+import { API_URL } from '../config';
+import { useToast } from '../context/ToastContext';
 import styles from './OrderHistory.module.css';
 
 interface OrderHistoryProps {
@@ -40,6 +42,7 @@ interface Pedido {
 }
 
 export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) => {
+  const { showToast } = useToast();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [searchPhone, setSearchPhone] = useState('');
   const [isBuscandoTelefone, setIsBuscandoTelefone] = useState(false);
@@ -68,7 +71,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
 
       for (const id of ids) {
         try {
-          const response = await fetch(`http://localhost:3001/api/pedidos/${id}`);
+          const response = await fetch(`${API_URL}/api/pedidos/${id}`);
           if (response.ok) {
             const ped = await response.json();
             listaPedidos.push(ped);
@@ -104,14 +107,14 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
 
     setIsBuscandoTelefone(true);
     try {
-      const response = await fetch(`http://localhost:3001/api/pedidos/cliente/${searchPhone}`);
+      const response = await fetch(`${API_URL}/api/pedidos/cliente/${searchPhone}`);
       if (!response.ok) throw new Error();
 
       const dados: Pedido[] = await response.json();
       setPedidos(dados);
 
       if (dados.length === 0) {
-        alert('Nenhum pedido encontrado para este telefone no banco SQLite.');
+        showToast('Nenhum pedido encontrado para este telefone.', 'info', 'Busca de Pedidos');
       } else {
         // Aproveita e salva os IDs dos pedidos encontrados no localStorage para facilidade futura
         const novosIds = dados.map((p) => p.id);
@@ -119,7 +122,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
       }
     } catch (err) {
       console.error(err);
-      alert('Sem conexao com o backend para buscar historico.');
+      showToast('Sem conexão com o servidor para buscar o histórico.', 'info', 'Erro de Conexão');
     } finally {
       setIsBuscandoTelefone(false);
     }
@@ -145,7 +148,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
     const keyAvaliada = `${avaliandoItem.pedidoId}-${avaliandoItem.produtoId}`;
 
     try {
-      const response = await fetch('http://localhost:3001/api/avaliacoes', {
+      const response = await fetch(`${API_URL}/api/avaliacoes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -164,12 +167,12 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
       setItensAvaliados(novasAvaliadas);
       localStorage.setItem('uemura_itens_avaliados', JSON.stringify(novasAvaliadas));
       
-      alert('Obrigado! Sua avaliação foi gravada no banco SQLite e carregará na Home.');
+      showToast('Sua avaliação foi registrada e aparecerá na página principal.', 'sucesso', 'Obrigado! 🌟');
       setAvaliandoItem(null);
       setComentarioAvaliacao('');
     } catch (err) {
       console.error(err);
-      alert('Falha ao enviar a avaliacao para o servidor.');
+      showToast('Não foi possível enviar sua avaliação. Tente novamente.', 'info', 'Erro');
     } finally {
       setIsEnviandoAvaliacao(false);
     }
@@ -179,7 +182,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
   // senao qualquer visitante marcaria o proprio pedido como pago.
   const handleSimularStatus = async (pedidoId: string, novoStatus: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/pedidos/${pedidoId}/atualizar-status`, {
+      const response = await fetch(`${API_URL}/api/pedidos/${pedidoId}/atualizar-status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

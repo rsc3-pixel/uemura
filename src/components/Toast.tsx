@@ -7,6 +7,7 @@ export interface ToastMessage {
   id: string;
   texto: string;
   tipo?: 'info' | 'sucesso';
+  titulo?: string;
 }
 
 interface ToastProps {
@@ -47,7 +48,7 @@ const ToastItem: React.FC<{ toast: ToastMessage; onClose: () => void }> = ({ toa
         {toast.tipo === 'sucesso' ? <Bell size={18} /> : <Info size={18} />}
       </div>
       <div className={styles.messageContent}>
-        <span className={styles.toastTitle}>Atualização de Pedido</span>
+        <span className={styles.toastTitle}>{toast.titulo ?? 'Atualização de Pedido'}</span>
         <p className={styles.toastText}>{toast.texto}</p>
       </div>
       <button onClick={onClose} className={styles.closeBtn} aria-label="Fechar notificação">

@@ -17,8 +17,10 @@ popularBancoSeVazio();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Em producao, defina CORS_ORIGIN com o dominio do front (ex.: https://uemurafloresplantas.com.br).
+// Sem a variavel, libera qualquer origem, o que so e aceitavel no ambiente local de testes.
 app.use(cors({
-  origin: '*' // Permite chamadas de qualquer origem no ambiente local de testes
+  origin: process.env.CORS_ORIGIN ?? '*'
 }));
 
 app.use(express.json());
