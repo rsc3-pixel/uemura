@@ -10,12 +10,14 @@ A arquitetura Full Stack desenvolvida é altamente performática e resiliente. A
 
 ### O que temos hoje:
 1. **Resiliência de Integração:** O fluxo de pagamento PIX e cálculo de frete possui redundância dupla. Se o Mercado Pago ou os Correios apresentarem instabilidade na rede, o site entra em contingência imediata, gerando o PIX de simulação e garantindo que o cliente complete a experiência sem travamentos.
-2. **Validação de Negócios Centralizada:** Cupons de desconto e cálculos financeiros são efetuados no backend Node.js, impedindo manipulações maliciosas de preços pelo console do navegador do cliente.
-3. **Sincronização em Tempo Real:** O uso de loops de sincronização (polling) no React com alertas visuais (Toasts) mantém o cliente informado sobre o status logístico do pedido no segundo exato em que ele muda no banco de dados.
+2. **Valores Calculados no Servidor:** Preço, desconto e frete são sempre derivados do banco e das regras no backend. O cliente envia apenas intenções (qual cupom, qual opção de frete), nunca valores. Enviar `desconto: 100` pelo console não tem efeito, o servidor ignora e recalcula. A restrição de planta viva também usa a categoria do banco, não a informada no request.
+3. **Rotas de Status Protegidas:** Aprovar pagamento e avançar a entrega exigem um header `x-admin-token`. Sem `ADMIN_TOKEN` no ambiente, essas rotas ficam desativadas, o padrão seguro para produção.
+4. **Avaliações Verificadas:** O backend só grava uma avaliação se o pedido informado existe, está "Entregue" e contém o produto avaliado. A trava não é apenas visual.
+5. **Sincronização em Tempo Real:** Polling no React com notificações Toast globais mantém o cliente informado sobre o status logístico no momento em que ele muda no banco.
 
 ### Pontos de Melhoria Futura (Evolução do Produto):
-* **Painel Administrativo Isolado:** No momento, os botões de simulação e alteração de status estão inseridos de forma didática no próprio histórico de pedidos do cliente (para facilitar a visualização do portfólio de estudos). Em produção, esses botões devem ser removidos e movidos para uma rota de administração protegida por login e senha (ex: `/admin`), exclusiva para a equipe da loja.
-* **Autenticação por Código Único (Passwordless):** A consulta ao histórico de pedidos é baseada no número de telefone informado. Para produção, pode-se integrar um serviço de envio de código numérico via WhatsApp (ex: Twilio ou Z-API) para autenticar o cliente com segurança e praticidade, sem exigir senhas complexas.
+* **Painel Administrativo Isolado:** As rotas de status já exigem token, mas os botões de simulação ainda aparecem, de forma didática, no histórico do próprio cliente. Em produção, eles devem ser removidos e movidos para uma rota `/admin` com login próprio. Nota: o `VITE_ADMIN_TOKEN` do front fica visível no bundle, então serve só ao demo local, não é proteção real de produção.
+* **Autenticação por Código Único (Passwordless):** A consulta ao histórico por telefone hoje não expõe endereço nem telefone (mitigação LGPD), mas ainda é pública. Para produção, integrar envio de código via WhatsApp (Twilio ou Z-API) para autenticar o cliente antes de liberar o histórico completo. Há um `TODO` marcando isso em `backend/src/routes/pedidos.ts`.
 * **Envio de Mensagens Logísticas Automatizadas:** Configurar disparos automáticos de mensagens de texto no WhatsApp do cliente informando o código PIX copia e cola e alertando quando o pedido sair para entrega.
 
 ---

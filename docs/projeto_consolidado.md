@@ -24,15 +24,21 @@ c:\Users\CHONGRENATOO\Documents\uemurafloresplantas.com.br
 │   ├── prisma/
 │   │   └── schema.prisma          # Estrutura de tabelas e conexoes
 │   ├── src/
+│   │   ├── config/
+│   │   │   └── mercadopago.ts     # Cliente MP lido do ambiente (sem chave no codigo)
 │   │   ├── data/
 │   │   │   └── seed.ts            # Carga de dados (Produtos, Cupons, Avaliacoes)
+│   │   ├── middleware/
+│   │   │   └── admin.ts           # Exige x-admin-token nas rotas de status
+│   │   ├── services/
+│   │   │   └── frete.ts           # Regras de frete (usadas por cotacao e pedido)
 │   │   ├── routes/
 │   │   │   ├── produtos.ts        # Endpoints de catalogo
-│   │   │   ├── pedidos.ts         # Integracao Mercado Pago e Historico
-│   │   │   ├── cupons.ts          # Validacao de descontos no servidor
-│   │   │   ├── frete.ts           # Regras de Frete Misto e Correios
-│   │   │   └── avaliacoes.ts      # Salva reviews pos-entrega
-│   │   └── server.ts              # Inicializador e registro das rotas
+│   │   │   ├── pedidos.ts         # Criacao de pedido, PIX e recalculo seguro
+│   │   │   ├── cupons.ts          # Validacao de cupom para exibicao na sacola
+│   │   │   ├── frete.ts           # Rota de cotacao (delega para services/frete.ts)
+│   │   │   └── avaliacoes.ts      # Reviews validados contra pedido entregue
+│   │   └── server.ts              # Inicializador, CORS por ambiente e rotas
 │   └── package.json
 │
 ├── src/                           # Client React
@@ -42,11 +48,13 @@ c:\Users\CHONGRENATOO\Documents\uemurafloresplantas.com.br
 │   │   ├── OrderHistory.tsx       # Area do cliente, cultivo e simulador logistico
 │   │   ├── OrderStatusTracker.tsx # Barra de progresso do rastreamento
 │   │   ├── Testimonials.tsx       # Depoimentos dinamicos na Home
-│   │   ├── Toast.tsx              # Notificacoes popup em tempo real
+│   │   ├── Toast.tsx              # Componente visual das notificacoes
 │   │   └── FAQ.tsx                # Central de Ajuda interativa
 │   ├── context/
 │   │   ├── CartContext.tsx        # Contexto de estado da sacola
-│   │   └── FavoritesContext.tsx   # Contexto de favoritos
+│   │   ├── FavoritesContext.tsx   # Contexto de favoritos
+│   │   └── ToastContext.tsx       # Contexto global de notificacoes Toast
+│   ├── config.ts                  # URL da API (VITE_API_URL)
 │   ├── App.tsx                    # Orquestrador central e loop de polling
 │   └── App.css                    # Estilos globais e hero section
 │
@@ -71,23 +79,25 @@ O arquivo `backend/prisma/schema.prisma` define a estrutura relacional do banco 
 
 ## 4. Endpoints da API (Backend)
 
-O servidor responde em `http://localhost:3001` com as seguintes rotas REST:
+O servidor responde na URL definida por `VITE_API_URL` (padrão `http://localhost:3001` em desenvolvimento) com as seguintes rotas REST:
+
+**Princípio de segurança:** o cliente envia apenas *intenções* (qual cupom, qual opção de frete, quais produtos). Todo valor em dinheiro (preço, desconto, frete) é derivado do banco e das regras no servidor. Valores enviados no corpo da requisição são ignorados.
 
 * **Produtos:**
   * `GET /api/produtos`: Retorna a listagem de todos os itens do catálogo de plantas.
 * **Pedidos:**
-  * `POST /api/pedidos`: Cria um novo pedido no SQLite e dispara requisição para a API de Sandbox do Mercado Pago para gerar o PIX Dinâmico com QR Code em Base64. Caso o servidor esteja offline, executa a contingência local e gera os dados de teste locais.
-  * `GET /api/pedidos/cliente/:telefone`: Busca todos os pedidos anteriores vinculados ao WhatsApp informado.
+  * `POST /api/pedidos`: Cria um novo pedido. Recebe `cep`, `freteId` (id da opção escolhida) e `cupomCodigo` (código, não a porcentagem). O servidor recalcula preço, frete e desconto a partir do banco, gera o PIX Dinâmico no Mercado Pago (ou a contingência local se offline) e grava no SQLite.
+  * `GET /api/pedidos/cliente/:telefone`: Busca pedidos vinculados ao telefone. **Não retorna endereço nem telefone** (mitigação LGPD); só nome, itens, total e status.
   * `GET /api/pedidos/:id`: Retorna o status e os dados de um pedido específico.
-  * `POST /api/pedidos/:id/simular-pagamento`: Muda o status do pedido para "Aprovado" de forma manual.
-  * `POST /api/pedidos/:id/atualizar-status`: Altera o status do pedido para qualquer etapa da logística (Pendente -> Aprovado -> Preparando -> Em Rota -> Entregue).
+  * `POST /api/pedidos/:id/simular-pagamento`: **Rota administrativa** (exige header `x-admin-token`). Muda o status para "Aprovado". Desativada se `ADMIN_TOKEN` não estiver definido.
+  * `POST /api/pedidos/:id/atualizar-status`: **Rota administrativa** (exige header `x-admin-token`). Avança o status na esteira logística (Pendente -> Aprovado -> Preparando -> Em Rota -> Entregue).
 * **Cupons:**
-  * `POST /api/cupons/validar`: Recebe o código e o subtotal, valida a existência do cupom no banco e retorna os valores recalculados com o desconto aplicado.
+  * `POST /api/cupons/validar`: Recebe o código e o subtotal, valida o cupom no banco e retorna os valores para exibição na sacola. A validação definitiva do desconto acontece de novo na criação do pedido.
 * **Frete:**
-  * `POST /api/frete`: Recebe o CEP e itens. Se houver plantas vivas, restringe a entrega à Grande São Paulo via Motoboy (R$ 15,00) e bloqueia o restante. Se houver apenas vasos/acessórios, calcula o PAC e SEDEX simulando as tarifas dos Correios para o Brasil.
+  * `POST /api/frete`: Cotação exibida na sacola. Recebe CEP e itens. Se houver plantas vivas, restringe a entrega à Grande São Paulo via Motoboy (R$ 15,00). Só vasos/acessórios liberam PAC/SEDEX. A lógica vive em `services/frete.ts`, reaproveitada na criação do pedido (que usa a categoria do banco, não a enviada pelo cliente).
 * **Avaliacoes:**
   * `GET /api/avaliacoes`: Retorna os depoimentos de clientes cadastrados no SQLite.
-  * `POST /api/avaliacoes`: Salva uma nova avaliação de 1 a 5 estrelas vinculada a um pedido entregue.
+  * `POST /api/avaliacoes`: Salva uma avaliação de 1 a 5 estrelas. O servidor exige `pedidoId` e só aceita se o pedido existe, está "Entregue" e contém o produto avaliado.
 * **Webhooks:**
   * `POST /api/webhooks/pagamento`: Rota pública chamada pelo Mercado Pago para notificar a compensação do PIX em produção, atualizando o pedido no SQLite automaticamente.
 
@@ -95,6 +105,6 @@ O servidor responde em `http://localhost:3001` com as seguintes rotas REST:
 
 ## 5. Dinâmicas e Loops de Sincronização (Toasts)
 
-* **Polling:** O `App.tsx` executa um loop (`window.setInterval`) a cada 4 segundos que varre os pedidos pendentes guardados no `localStorage` do cliente e consulta o status atual no servidor backend.
-* **Alerta Toast:** Se o status no banco de dados SQLite diferir do cache local (ex: mudar de Preparando para "Em Rota"), o React dispara uma notificação Toast na tela (ex: "🛵 O motoboy da Uemura saiu com a sua entrega!").
+* **Polling:** O `App.tsx` monta um `window.setInterval` de 4 segundos (uma única vez, no mount) que varre os pedidos guardados no `localStorage` e consulta o status atual no backend. O cache de status fica num `useRef`, para ler e escrever sem recriar o intervalo a cada ciclo.
+* **Alerta Toast:** Se o status no SQLite diferir do cache local (ex: mudar de Preparando para "Em Rota"), dispara uma notificação Toast. O sistema de Toast é global (`ToastContext`), acessível por qualquer componente via `useToast()`, o que substituiu os antigos `alert()` do projeto.
 * **Aprovações Webhook:** No momento em que o pagamento é aprovado (via simulador ou webhook real do Mercado Pago), a tela do carrinho é atualizada automaticamente pela escuta, limpando a sacola de compras e exibindo a mensagem de sucesso.
