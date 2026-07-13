@@ -36,15 +36,19 @@ export type ResultadoFrete =
 const CATEGORIA_PLANTA_VIVA = 'Flores e Plantas';
 
 // Tarifas por regiao, indexadas pelo primeiro digito do CEP.
+// ESTIMATIVAS enquanto nao ha integracao oficial dos Correios (ver buscarFreteCorreios
+// abaixo). Prazos calibrados por experiencia real: o SEDEX chega em poucos dias mesmo
+// para o Nordeste; o PAC e o servico lento. Quando a Uemura tiver contrato, a API real
+// substitui estes numeros.
 const TARIFAS_POR_REGIAO = [
-  { digitos: ['0', '1'], pac: 14.50, sedex: 19.90, prazoPac: '3 a 5 dias úteis', prazoSedex: '1 a 2 dias úteis' },
-  { digitos: ['2', '3'], pac: 18.90, sedex: 27.20, prazoPac: '5 a 7 dias úteis', prazoSedex: '2 a 3 dias úteis' },
-  { digitos: ['4', '5', '6'], pac: 32.50, sedex: 59.80, prazoPac: '8 a 12 dias úteis', prazoSedex: '4 a 6 dias úteis' },
-  { digitos: ['7'], pac: 26.80, sedex: 47.90, prazoPac: '7 a 10 dias úteis', prazoSedex: '4 a 5 dias úteis' },
-  { digitos: ['8', '9'], pac: 23.50, sedex: 38.90, prazoPac: '6 a 9 dias úteis', prazoSedex: '3 a 4 dias úteis' },
+  { digitos: ['0', '1'], pac: 14.50, sedex: 19.90, prazoPac: '2 a 4 dias úteis', prazoSedex: '1 a 2 dias úteis' },
+  { digitos: ['2', '3'], pac: 18.90, sedex: 27.20, prazoPac: '3 a 6 dias úteis', prazoSedex: '1 a 3 dias úteis' },
+  { digitos: ['4', '5', '6'], pac: 32.50, sedex: 59.80, prazoPac: '5 a 9 dias úteis', prazoSedex: '2 a 4 dias úteis' },
+  { digitos: ['7'], pac: 26.80, sedex: 47.90, prazoPac: '4 a 8 dias úteis', prazoSedex: '2 a 4 dias úteis' },
+  { digitos: ['8', '9'], pac: 23.50, sedex: 38.90, prazoPac: '4 a 7 dias úteis', prazoSedex: '2 a 3 dias úteis' },
 ];
 
-const TARIFA_PADRAO = { pac: 18.90, sedex: 26.40, prazoPac: '5 a 8 dias úteis', prazoSedex: '2 a 4 dias úteis' };
+const TARIFA_PADRAO = { pac: 18.90, sedex: 26.40, prazoPac: '3 a 7 dias úteis', prazoSedex: '2 a 4 dias úteis' };
 
 const PESO_KG_POR_CATEGORIA: Record<string, number> = {
   'Vasos': 2.5,
@@ -68,6 +72,30 @@ const calcularPesoTotalKg = (itens: ItemFrete[]) =>
     const pesoUnitario = PESO_KG_POR_CATEGORIA[item.categoria] ?? PESO_KG_PADRAO;
     return peso + pesoUnitario * item.quantidade;
   }, 0);
+
+// ---------------------------------------------------------------------------
+// PONTO DE INTEGRACAO com a API oficial dos Correios.
+//
+// Hoje o frete usa a tabela de estimativas acima. Quando a Uemura tiver contrato
+// corporativo (Correios Facil), preencher estas variaveis de ambiente e implementar
+// buscarFreteCorreios para chamar a API real de Precos e Prazos. As funcoes
+// calcularOpcoesFrete ja estao prontas para consumir o resultado.
+//
+// Passos (ver docs/producao_real.md):
+//   1. Obter usuario, senha e codigo de acesso no Portal Correios Facil.
+//   2. Autenticar (OAuth2) e chamar a API de Precos e Prazos com CEP origem/destino,
+//      peso e o codigo do servico contratado (SEDEX/PAC faturado).
+//   3. Retornar { preco, prazo } por servico e alimentar opcaoPac/opcaoSedex com eles.
+//
+// const CORREIOS_USUARIO = process.env.CORREIOS_USUARIO;
+// const CORREIOS_SENHA = process.env.CORREIOS_SENHA;
+// const CORREIOS_CODIGO_ACESSO = process.env.CORREIOS_CODIGO_ACESSO;
+//
+// export async function buscarFreteCorreios(cepDestino: string, pesoKg: number):
+//   Promise<{ pac: {preco: number, prazo: string}, sedex: {preco: number, prazo: string} }> {
+//   // TODO: chamar a API oficial. Enquanto nao existe, o codigo usa a tabela estimada.
+// }
+// ---------------------------------------------------------------------------
 
 // Monta a opcao de PAC para o CEP e peso informados.
 const opcaoPac = (cep: string, taxaPesoExtra: number): OpcaoFrete => {
