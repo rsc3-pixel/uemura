@@ -26,21 +26,39 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // POST /api/avaliacoes: Criar um novo review de um produto apos entrega
+// So permite avaliar um produto que o cliente REALMENTE comprou e recebeu:
+// o pedido informado precisa existir, estar "Entregue" e conter aquele produto.
+// A trava do front (botao so aparece quando entregue) nao basta: qualquer um
+// chamaria a rota direto para forjar depoimentos.
 router.post('/', async (req: Request, res: Response) => {
-  const { clienteNome, nota, comentario, produtoId } = req.body;
+  const { clienteNome, nota, comentario, produtoId, pedidoId } = req.body;
 
-  if (!clienteNome || typeof nota !== 'number' || nota < 1 || nota > 5 || !comentario || !produtoId) {
+  if (!clienteNome || typeof nota !== 'number' || nota < 1 || nota > 5 || !comentario || !produtoId || !pedidoId) {
     res.status(400).json({ error: 'Dados da avaliacao invalidos' });
     return;
   }
 
   try {
-    const produtoExiste = await prisma.produto.findUnique({
-      where: { id: produtoId }
+    // O pedido precisa existir, ter sido entregue e conter o produto avaliado.
+    const pedido = await prisma.pedido.findUnique({
+      where: { id: pedidoId },
+      include: { itens: true }
     });
 
-    if (!produtoExiste) {
-      res.status(404).json({ error: 'Produto a ser avaliado nao existe no banco' });
+    if (!pedido) {
+      res.status(404).json({ error: 'Pedido informado nao existe' });
+      return;
+    }
+
+    if (pedido.status !== 'Entregue') {
+      res.status(403).json({ error: 'So e possivel avaliar apos o pedido ser entregue' });
+      return;
+    }
+
+    const comprouEsteProduto = pedido.itens.some((item) => item.produtoId === produtoId);
+
+    if (!comprouEsteProduto) {
+      res.status(403).json({ error: 'Este produto nao faz parte do pedido informado' });
       return;
     }
 

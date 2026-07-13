@@ -29,8 +29,10 @@ interface ItemPedido {
 interface Pedido {
   id: string;
   clienteNome: string;
-  clienteTelefone: string;
-  clienteEndereco: string;
+  // Endereco e telefone nao vem na busca por telefone (mitigacao LGPD no backend).
+  // So chegam na consulta por id de um pedido especifico.
+  clienteTelefone?: string;
+  clienteEndereco?: string;
   total: number;
   status: string;
   dataCriacao: string;
@@ -150,7 +152,8 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
           clienteNome: clienteNome || 'Cliente Uemura',
           nota: notaAvaliacao,
           comentario: comentarioAvaliacao,
-          produtoId: avaliandoItem.produtoId
+          produtoId: avaliandoItem.produtoId,
+          pedidoId: avaliandoItem.pedidoId
         })
       });
 
@@ -172,12 +175,16 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
     }
   };
 
-  // Simula o avanço do status de entrega do pedido no backend SQLite
+  // Avanca o status de entrega no backend. Rota administrativa: exige o token de admin,
+  // senao qualquer visitante marcaria o proprio pedido como pago.
   const handleSimularStatus = async (pedidoId: string, novoStatus: string) => {
     try {
       const response = await fetch(`http://localhost:3001/api/pedidos/${pedidoId}/atualizar-status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-token': import.meta.env.VITE_ADMIN_TOKEN ?? ''
+        },
         body: JSON.stringify({ status: novoStatus })
       });
 
@@ -186,7 +193,11 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ isOpen, onClose }) =
         setPedidos((prev) =>
           prev.map((p) => (p.id === pedidoId ? { ...p, status: novoStatus } : p))
         );
+        return;
       }
+
+      const erro = await response.json().catch(() => ({}));
+      console.warn('Falha ao atualizar status:', erro.error ?? response.status);
     } catch (err) {
       console.warn('Erro ao atualizar status:', err);
     }

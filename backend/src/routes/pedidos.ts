@@ -1,44 +1,98 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../server.js';
 import { mpPayment } from '../config/mercadopago.js';
+import { calcularOpcoesFrete } from '../services/frete.js';
+import { exigirAdmin } from '../middleware/admin.js';
 
 const router = Router();
 
 // POST /api/pedidos: Criar um novo pedido no banco SQLite e gerar o PIX Dinâmico no Mercado Pago
+//
+// O cliente envia INTENCOES (qual cupom, qual opcao de frete), nunca VALORES.
+// Preco, desconto e frete sao todos derivados do banco/das regras aqui no servidor.
+// Aceitar "desconto: 100" ou "frete: 0" do req.body permitiria zerar qualquer pedido
+// pelo console do navegador.
 router.post('/', async (req: Request, res: Response) => {
-  const { clienteNome, clienteTelefone, clienteEndereco, itens, frete, desconto } = req.body;
+  const { clienteNome, clienteTelefone, clienteEndereco, cep, itens, freteId, cupomCodigo } = req.body;
 
-  if (!clienteNome || !clienteTelefone || !clienteEndereco || !itens || !Array.isArray(itens) || itens.length === 0) {
-    res.status(400).json({ error: 'Dados do pedido ou itens invalidos' });
+  if (!clienteNome || !clienteTelefone || !clienteEndereco || !cep || !itens || !Array.isArray(itens) || itens.length === 0) {
+    res.status(400).json({ error: 'Dados do pedido, CEP ou itens invalidos' });
     return;
   }
 
   try {
-    // 1. Calcula o total geral de forma segura no servidor
-    let totalItens = 0;
+    // 1. Preco e categoria dos itens: sempre do banco, nunca do que o cliente mandou
+    let subtotal = 0;
     const itensParaSalvar = [];
+    const itensFrete = [];
 
     for (const item of itens) {
-      const prod = await prisma.produto.findUnique({
-        where: { id: item.produto.id }
-      });
+      const quantidade = Number(item.quantidade);
 
-      if (!prod) {
-        res.status(404).json({ error: `Produto com id ${item.produto.id} nao encontrado no banco` });
+      if (!Number.isInteger(quantidade) || quantidade < 1) {
+        res.status(400).json({ error: `Quantidade invalida para o produto ${item.produto?.id}` });
         return;
       }
 
-      totalItens += prod.preco * item.quantidade;
+      const prod = await prisma.produto.findUnique({
+        where: { id: item.produto?.id }
+      });
+
+      if (!prod) {
+        res.status(404).json({ error: `Produto com id ${item.produto?.id} nao encontrado no banco` });
+        return;
+      }
+
+      subtotal += prod.preco * quantidade;
       itensParaSalvar.push({
         produtoId: prod.id,
-        quantidade: item.quantidade,
+        quantidade,
         precoUnitario: prod.preco
       });
+      // Categoria do BANCO decide a restricao de planta viva, nao a que o cliente enviou
+      itensFrete.push({ categoria: prod.categoria, quantidade });
     }
 
-    const subtotal = totalItens;
-    const valorDesconto = desconto ? (subtotal * desconto) / 100 : 0;
-    const totalGeral = Math.max(0, subtotal - valorDesconto) + (frete || 0);
+    // 2. Frete: recalculado pelas mesmas regras da cotacao, com as categorias do banco.
+    //    O cliente escolhe a OPCAO, o servidor determina o PRECO.
+    const cotacao = calcularOpcoesFrete(cep, itensFrete);
+
+    if (!cotacao.ok) {
+      res.status(400).json({ error: cotacao.error });
+      return;
+    }
+
+    const opcaoEscolhida = cotacao.opcoes.find((o) => o.id === freteId);
+
+    if (!opcaoEscolhida) {
+      res.status(400).json({
+        error: `Opcao de frete invalida para este CEP. Disponiveis: ${cotacao.opcoes.map((o) => o.id).join(', ')}`
+      });
+      return;
+    }
+
+    const valorFrete = opcaoEscolhida.preco;
+
+    // 3. Desconto: derivado do cupom no banco. O cliente manda o CODIGO, nunca a porcentagem.
+    let valorDesconto = 0;
+    let descontoPorcentagem = 0;
+
+    if (cupomCodigo) {
+      const cupom = await prisma.cupom.findUnique({
+        where: { codigo: String(cupomCodigo).toUpperCase() }
+      });
+
+      if (!cupom || !cupom.ativo) {
+        res.status(400).json({ error: 'Cupom invalido ou inativo' });
+        return;
+      }
+
+      descontoPorcentagem = cupom.descontoPorcentagem;
+      valorDesconto = (subtotal * descontoPorcentagem) / 100;
+    }
+
+    // Desconto incide so nos produtos, nunca no frete (regra do rulebook)
+    const totalGeral = Number((Math.max(0, subtotal - valorDesconto) + valorFrete).toFixed(2));
 
     const pedidoId = `PED-${Math.floor(100000 + Math.random() * 900000)}`;
 
@@ -126,13 +180,27 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/pedidos/cliente/:telefone: Buscar historico de pedidos por telefone do cliente
+//
+// MITIGACAO LGPD: esta rota e publica (basta saber o telefone), entao NAO expomos
+// endereco nem telefone. So devolvemos o minimo para o cliente reconhecer e rastrear
+// o pedido. Um scraper que varra telefones coleta, no maximo, nome + itens comprados,
+// nunca o endereco de entrega.
+//
+// TODO(seguranca): trocar por autenticacao real antes de producao. O rulebook preve
+// login passwordless por codigo no WhatsApp (Twilio/Z-API): gerar um codigo, enviar ao
+// numero, e so entao liberar o historico completo. Ver docs/rulebook_uemura.md.
 router.get('/cliente/:telefone', async (req: Request, res: Response) => {
   const telefone = req.params.telefone as string;
 
   try {
     const pedidos = await prisma.pedido.findMany({
       where: { clienteTelefone: telefone },
-      include: {
+      select: {
+        id: true,
+        clienteNome: true,
+        total: true,
+        status: true,
+        dataCriacao: true,
         itens: {
           include: {
             produto: true
@@ -178,7 +246,8 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/pedidos/:id/simular-pagamento: Simular o recebimento do PIX mudando o status para Aprovado
-router.post('/:id/simular-pagamento', async (req: Request, res: Response) => {
+// Rota administrativa: em producao quem aprova o pagamento e o webhook do Mercado Pago.
+router.post('/:id/simular-pagamento', exigirAdmin, async (req: Request, res: Response) => {
   const id = req.params.id as string;
 
   try {
@@ -206,8 +275,9 @@ router.post('/:id/simular-pagamento', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/pedidos/:id/atualizar-status: Atualizar status do pedido para qualquer etapa da entrega (testes)
-router.post('/:id/atualizar-status', async (req: Request, res: Response) => {
+// POST /api/pedidos/:id/atualizar-status: Avancar o pedido na esteira logistica
+// Rota administrativa: so a equipe da Uemura muda o status de uma entrega.
+router.post('/:id/atualizar-status', exigirAdmin, async (req: Request, res: Response) => {
   const id = req.params.id as string;
   const { status } = req.body;
 

@@ -39,6 +39,7 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
 
   // Estados do Cupom
   const [cupomInput, setCupomInput] = useState('');
+  const [cupomAplicado, setCupomAplicado] = useState('');
   const [descontoPorcentagem, setDescontoPorcentagem] = useState(0);
   const [valorDesconto, setValorDesconto] = useState(0);
   const [cupomErro, setCupomErro] = useState('');
@@ -154,10 +155,12 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
       const dados = await response.json();
       setDescontoPorcentagem(dados.descontoPorcentagem);
       setValorDesconto(dados.valorDesconto);
+      setCupomAplicado(cupomInput.toUpperCase());
       setCupomSucesso(`Cupom ${cupomInput.toUpperCase()} aplicado (${dados.descontoPorcentagem}% de desconto)`);
     } catch (err: any) {
       setDescontoPorcentagem(0);
       setValorDesconto(0);
+      setCupomAplicado('');
       setCupomErro(err.message || 'Cupom invalido ou expirado');
     } finally {
       setIsValidandoCupom(false);
@@ -165,9 +168,11 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
   };
 
   // Envia o pedido para a API do backend Node.js
+  // Enviamos INTENCOES (qual cupom, qual opcao de frete), nunca valores em reais:
+  // o servidor recalcula desconto e frete a partir do banco e das regras dele.
   const handleFinalizarCompra = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!checkoutName || !checkoutPhone || !checkoutAddress) return;
+    if (!checkoutName || !checkoutPhone || !checkoutAddress || !freteSelecionado) return;
 
     setIsEnviandoPedido(true);
 
@@ -179,8 +184,9 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
           clienteNome: checkoutName,
           clienteTelefone: checkoutPhone,
           clienteEndereco: checkoutAddress,
-          frete: frete || 0,
-          desconto: descontoPorcentagem, // Envia a porcentagem de desconto para gravacao no SQLite
+          cep,
+          freteId: freteSelecionado.id,
+          cupomCodigo: cupomAplicado || undefined,
           itens: cartItems
         })
       });
@@ -271,7 +277,8 @@ export const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
 
     try {
       const response = await fetch(`http://localhost:3001/api/pedidos/${pedidoCriado.id}/simular-pagamento`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'x-admin-token': import.meta.env.VITE_ADMIN_TOKEN ?? '' }
       });
 
       if (!response.ok) {
