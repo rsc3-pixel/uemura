@@ -1,0 +1,92 @@
+.trackerContainer {
+  padding: 1.2rem 0;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.stepsWrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  min-width: 480px; /* Garante que a linha nao esprema demais no mobile */
+  position: relative;
+  padding: 0 0.5rem;
+}
+
+.stepItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  position: relative;
+  text-align: center;
+}
+
+.iconCircle {
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  background-color: #f1f5f9;
+  border: 2px solid #cbd5e1;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: all 0.3s ease;
+}
+
+.stepItem.completed .iconCircle {
+  background-color: #ecfdf5;
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.stepItem.active .iconCircle {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(46, 90, 39, 0.2);
+  transform: scale(1.1);
+}
+
+.connectorLine {
+  position: absolute;
+  top: 18px;
+  left: -50%;
+  right: 50%;
+  height: 2px;
+  background-color: #cbd5e1;
+  z-index: 1;
+  transition: all 0.3s ease;
+}
+
+.completedLine {
+  background-color: #10b981;
+}
+
+.stepLabels {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.stepLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text-light);
+}
+
+.stepItem.completed .stepLabel,
+.stepItem.active .stepLabel {
+  color: var(--color-text);
+}
+
+.stepDesc {
+  font-size: 0.65rem;
+  color: var(--color-text-light);
+  max-width: 85px;
+  line-height: 1.2;
+}

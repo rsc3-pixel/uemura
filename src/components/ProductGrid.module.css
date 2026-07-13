@@ -1,0 +1,140 @@
+.section {
+  padding: 2rem 0;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .header {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+}
+
+.sectionTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  position: relative;
+}
+
+.count {
+  font-size: 0.875rem;
+  color: var(--color-text-light);
+}
+
+.tabsContainer {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 2rem;
+  overflow-x: auto;
+  padding-bottom: 0.6rem;
+  scrollbar-width: none; /* Esconde scroll no Firefox */
+}
+
+.tabsContainer::-webkit-scrollbar {
+  display: none; /* Esconde scroll no Chrome/Safari */
+}
+
+.tabBtn {
+  flex-shrink: 0;
+  background-color: #f1f5f9;
+  color: var(--color-text-light);
+  padding: 0.5rem 1.2rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: var(--transition-smooth);
+}
+
+.tabBtn:hover {
+  background-color: #e2e8f0;
+  color: var(--color-text);
+}
+
+.activeTab {
+  background-color: var(--color-primary);
+  color: #ffffff !important;
+  box-shadow: 0 4px 6px -1px rgba(46, 90, 39, 0.2);
+}
+
+/* Vitrine responsiva - Grid */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* Mobile-First: 2 colunas */
+  gap: 0.8rem;
+}
+
+@media (min-width: 640px) {
+  .grid {
+    gap: 1.2rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr); /* Tablets */
+    gap: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(4, 1fr); /* Desktop */
+    gap: 2rem;
+  }
+}
+
+/* Estado Vazio */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem;
+  background-color: #ffffff;
+  border: 2px dashed var(--color-border);
+  border-radius: 12px;
+  text-align: center;
+  max-width: 500px;
+  margin: 2rem auto;
+}
+
+.emptyIcon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.emptyState h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--color-text);
+}
+
+.emptyState p {
+  font-size: 0.875rem;
+  color: var(--color-text-light);
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.resetBtn {
+  background-color: var(--color-primary);
+  color: #ffffff;
+  padding: 0.6rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: var(--transition-smooth);
+}
+
+.resetBtn:hover {
+  background-color: var(--color-primary-hover);
+}

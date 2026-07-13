@@ -1,0 +1,46 @@
+/* Estilos especificos da aplicacao */
+.mainContent {
+  min-height: 80vh;
+}
+
+.heroSection {
+  background: linear-gradient(135deg, #2e5a27 0%, #1d3319 100%);
+  color: #ffffff;
+  padding: 4rem 1.5rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 3px solid var(--color-secondary);
+}
+
+.heroContent {
+  max-width: 800px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+.heroContent h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.heroContent p {
+  font-size: 1rem;
+  color: #cbd5e1;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .heroContent h1 {
+    font-size: 3rem;
+  }
+  
+  .heroContent p {
+    font-size: 1.15rem;
+  }
+}
