@@ -2,7 +2,10 @@
 // VITE_API_URL no ambiente de build (ex.: https://api.uemurafloresplantas.com.br).
 // Concentrar aqui evita cacar "localhost:3001" espalhado pelos componentes na hora
 // de publicar.
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+// Usa || (nao ??) de proposito: VITE_API_URL vazio no .env (string '') tambem deve
+// cair no fallback local, senao as chamadas viram relativas (/api/...) e batem no
+// proprio Vite em vez do backend.
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 // Le o corpo JSON de uma resposta de forma segura. Se o corpo vier vazio (servidor
 // reiniciando, conexao cortada, timeout), retorna {} em vez de estourar
