@@ -126,6 +126,11 @@ router.post('/', async (req: Request, res: Response) => {
       const firstName = nomePartes[0];
       const lastName = nomePartes.slice(1).join(' ') || 'Cliente';
 
+      // URL que o Mercado Pago chama ao compensar o PIX. Vem do ambiente (WEBHOOK_URL,
+      // o dominio publico do backend em producao). Em dev fica indefinido e nao enviamos
+      // notification_url, pois o MP nao conseguiria alcancar o localhost.
+      const webhookUrl = process.env.WEBHOOK_URL;
+
       const mpResponse = await mpPayment.create({
         body: {
           transaction_amount: Number(totalGeral.toFixed(2)),
@@ -137,8 +142,7 @@ router.post('/', async (req: Request, res: Response) => {
             first_name: firstName,
             last_name: lastName,
           },
-          // URL ilustrativa de Webhook para escuta das mudancas de status
-          notification_url: 'https://webhook.uemurafloreseplantas.com.br/api/webhooks/pagamento'
+          ...(webhookUrl ? { notification_url: webhookUrl } : {})
         }
       });
 

@@ -1,6 +1,9 @@
+// Desenvolvimento usa SQLite (arquivo local). Em producao, troque provider para
+// "postgresql" e defina DATABASE_URL no ambiente com a string de conexao do Postgres
+// (ex.: Neon). A url ja le do ambiente, com fallback para o arquivo local de dev.
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
