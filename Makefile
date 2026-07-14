@@ -1,6 +1,6 @@
 # Makefile para automatizar as tarefas do e-commerce Uemura (React + Node.js + SQLite)
 
-.PHONY: help install dev dev-frontend dev-backend build db-push clean
+.PHONY: help install dev dev-frontend dev-backend build db-push clean kill
 
 # Comando padrao exibe instrucoes de uso
 help:
@@ -9,6 +9,7 @@ help:
 	@echo "  make dev       - Inicia o front-end e o backend em paralelo para desenvolvimento"
 	@echo "  make build     - Compila ambas as aplicacoes para producao"
 	@echo "  make db-push   - Sincroniza o schema do Prisma com o banco de dados SQLite local"
+	@echo "  make kill      - Encerra os servidores presos nas portas 3001 e 5173"
 	@echo "  make clean     - Limpa os modulos de dependencias e pastas de build"
 
 # Instalar dependencias em ambos os ambientes
@@ -40,6 +41,11 @@ build:
 	npm run build
 	@echo "Compilando backend para producao..."
 	cd backend && npm run build
+
+# Encerra os servidores presos nas portas 3001 (backend) e 5173 (front)
+kill:
+	@echo "Encerrando servidores nas portas 3001 e 5173..."
+	-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kill-servers.ps1
 
 # Remover node_modules e pastas de build para reiniciar do zero
 clean:
